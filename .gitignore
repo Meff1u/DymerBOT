@@ -1,0 +1,4 @@
+node_modules
+src/config.js
+src/data/*.json
+package-lock.json

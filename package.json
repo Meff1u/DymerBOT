@@ -1,0 +1,15 @@
+{
+  "name": "dymerbot",
+  "version": "1.0.0",
+  "description": "Bot for Dymer's discord community",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "meffiu",
+  "license": "ISC",
+  "dependencies": {
+    "discord.js": "^14.22.1",
+    "moment": "^2.30.1"
+  }
+}
