@@ -106,7 +106,7 @@ class LevelSystem {
         };
     }
 
-    async addXp(userId, guildId) {
+    async addXp(userId, guildId, channelId = null, userRoles = []) {
         const user = await this.getUser(userId);
         
         user.messages += 1;
@@ -138,7 +138,32 @@ class LevelSystem {
             }
         }
 
-        xpGained = Math.floor(Math.random() * 3) + 1;
+        const config = require('../config.js');
+        const xpSettings = config.xpSettings || { baseMin: 3, baseMax: 6, roleBoosts: {}, channelBoosts: {} };
+        
+        let baseXp = Math.floor(Math.random() * (xpSettings.baseMax - xpSettings.baseMin + 1)) + xpSettings.baseMin;
+        let totalBoost = 0;
+        let appliedBoosts = [];
+
+        if (channelId && xpSettings.channelBoosts[channelId]) {
+            const channelBoost = xpSettings.channelBoosts[channelId];
+            const boostXp = Math.floor(Math.random() * (channelBoost.max - channelBoost.min + 1)) + channelBoost.min;
+            totalBoost += boostXp;
+            appliedBoosts.push(`Channel: +${boostXp}`);
+        }
+
+        if (userRoles && userRoles.length > 0) {
+            for (const roleId of userRoles) {
+                if (xpSettings.roleBoosts[roleId]) {
+                    const roleBoost = xpSettings.roleBoosts[roleId];
+                    const boostXp = Math.floor(Math.random() * (roleBoost.max - roleBoost.min + 1)) + roleBoost.min;
+                    totalBoost += boostXp;
+                    appliedBoosts.push(`Role: +${boostXp}`);
+                }
+            }
+        }
+
+        xpGained = baseXp + totalBoost;
         user.xp += xpGained;
         user.lastXpGain = now;
         
@@ -154,6 +179,9 @@ class LevelSystem {
         
         return {
             xpGained: xpGained,
+            baseXp: baseXp,
+            boostXp: totalBoost,
+            appliedBoosts: appliedBoosts,
             leveledUp: leveledUp,
             oldLevel: oldLevel,
             newLevel: newLevel,
@@ -253,7 +281,7 @@ const levelSystemInstance = new LevelSystem();
 const moduleExports = {
     execute: async (client) => {
         client.levelSystem = levelSystemInstance;
-        console.log('Level system loaded successfully!');
+        client.log('Level system loaded successfully!');
     },
     levelSystem: levelSystemInstance
 };

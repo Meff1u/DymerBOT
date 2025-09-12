@@ -11,11 +11,15 @@ module.exports = {
         if (!message.guild) return;
 
         try {
-            const result = await levelSystem.addXp(message.author.id, message.guild.id);
+            const userRoles = message.member ? message.member.roles.cache.map(role => role.id) : [];
+            const result = await levelSystem.addXp(
+                message.author.id, 
+                message.guild.id, 
+                message.channel.id, 
+                userRoles
+            );
             
-            // Jeśli użytkownik awansował na poziom (tylko gdy dostał XP)
             if (result && result.leveledUp && !result.onCooldown) {
-                // Sprawdź i zarządzaj rolami poziomów
                 const roleChanges = await levelSystem.checkLevelRoles(
                     message.author.id, 
                     message.guild.id, 
@@ -26,7 +30,6 @@ module.exports = {
 
                 let levelUpMessage = `🎉 Gratulacje ${message.author}! Awansowałeś na **poziom ${result.newLevel}**!`;
                 
-                // Dodaj informację o nowych rolach
                 if (roleChanges.added.length > 0) {
                     const roleNames = roleChanges.added.map(roleId => {
                         const role = message.guild.roles.cache.get(roleId);

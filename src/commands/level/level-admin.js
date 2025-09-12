@@ -17,6 +17,20 @@ async function saveConfig(configPath, config) {
         ${Object.entries(config.levelRoles || {})
             .map(([level, roleId]) => `${level}: "${roleId}"`)
             .join(",\n        ")}
+    },
+    xpSettings: {
+        baseMin: ${config.xpSettings?.baseMin || 3},
+        baseMax: ${config.xpSettings?.baseMax || 6},
+        roleBoosts: {
+            ${Object.entries(config.xpSettings?.roleBoosts || {})
+                .map(([roleId, boost]) => `"${roleId}": { min: ${boost.min}, max: ${boost.max} }`)
+                .join(",\n            ")}
+        },
+        channelBoosts: {
+            ${Object.entries(config.xpSettings?.channelBoosts || {})
+                .map(([channelId, boost]) => `"${channelId}": { min: ${boost.min}, max: ${boost.max} }`)
+                .join(",\n            ")}
+        }
     }
 }`;
     
@@ -129,6 +143,97 @@ const slash = {
             subcommand
                 .setName('sync-roles')
                 .setDescription('Synchronizuj role dla wszystkich użytkowników (może potrwać długo)')
+        )
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName('set-base-xp')
+                .setDescription('Ustaw bazowy zakres XP')
+                .addIntegerOption(option =>
+                    option
+                        .setName('min')
+                        .setDescription('Minimalne XP')
+                        .setRequired(true)
+                        .setMinValue(1)
+                )
+                .addIntegerOption(option =>
+                    option
+                        .setName('max')
+                        .setDescription('Maksymalne XP')
+                        .setRequired(true)
+                        .setMinValue(1)
+                )
+        )
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName('add-role-boost')
+                .setDescription('Dodaj boost XP dla roli')
+                .addRoleOption(option =>
+                    option
+                        .setName('role')
+                        .setDescription('Rola do dodania boostu')
+                        .setRequired(true)
+                )
+                .addIntegerOption(option =>
+                    option
+                        .setName('min')
+                        .setDescription('Minimalne bonus XP')
+                        .setRequired(true)
+                        .setMinValue(1)
+                )
+                .addIntegerOption(option =>
+                    option
+                        .setName('max')
+                        .setDescription('Maksymalne bonus XP')
+                        .setRequired(true)
+                        .setMinValue(1)
+                )
+        )
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName('remove-role-boost')
+                .setDescription('Usuń boost XP dla roli')
+                .addRoleOption(option =>
+                    option
+                        .setName('role')
+                        .setDescription('Rola do usunięcia boostu')
+                        .setRequired(true)
+                )
+        )
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName('add-channel-boost')
+                .setDescription('Dodaj boost XP dla kanału')
+                .addChannelOption(option =>
+                    option
+                        .setName('channel')
+                        .setDescription('Kanał do dodania boostu')
+                        .setRequired(true)
+                )
+                .addIntegerOption(option =>
+                    option
+                        .setName('min')
+                        .setDescription('Minimalne bonus XP')
+                        .setRequired(true)
+                        .setMinValue(1)
+                )
+                .addIntegerOption(option =>
+                    option
+                        .setName('max')
+                        .setDescription('Maksymalne bonus XP')
+                        .setRequired(true)
+                        .setMinValue(1)
+                )
+        )
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName('remove-channel-boost')
+                .setDescription('Usuń boost XP dla kanału')
+                .addChannelOption(option =>
+                    option
+                        .setName('channel')
+                        .setDescription('Kanał do usunięcia boostu')
+                        .setRequired(true)
+                )
         ),
     admin: true,
     run: async (client, interaction) => {
@@ -237,6 +342,32 @@ const slash = {
                 const totalMessages = allUsers.reduce((sum, user) => sum + user.messages, 0);
                 const avgLevel = totalUsers > 0 ? (allUsers.reduce((sum, user) => sum + user.level, 0) / totalUsers).toFixed(1) : 0;
 
+                delete require.cache[require.resolve('../../config.js')];
+                const statsConfig = require('../../config.js');
+                const xpSettings = statsConfig.xpSettings || { baseMin: 3, baseMax: 6, roleBoosts: {}, channelBoosts: {} };
+
+                let roleBoostsList = 'Brak';
+                if (Object.keys(xpSettings.roleBoosts).length > 0) {
+                    roleBoostsList = Object.entries(xpSettings.roleBoosts)
+                        .map(([roleId, boost]) => {
+                            const role = interaction.guild.roles.cache.get(roleId);
+                            const roleName = role ? role.name : 'Nieznana rola';
+                            return `${roleName}: ${boost.min}-${boost.max} XP`;
+                        })
+                        .join('\n');
+                }
+
+                let channelBoostsList = 'Brak';
+                if (Object.keys(xpSettings.channelBoosts).length > 0) {
+                    channelBoostsList = Object.entries(xpSettings.channelBoosts)
+                        .map(([channelId, boost]) => {
+                            const channel = interaction.guild.channels.cache.get(channelId);
+                            const channelName = channel ? channel.name : 'Nieznany kanał';
+                            return `#${channelName}: ${boost.min}-${boost.max} XP`;
+                        })
+                        .join('\n');
+                }
+
                 const statsEmbed = new EmbedBuilder()
                     .setColor(0x5865F2)
                     .setTitle('📊 Statystyki systemu leveli')
@@ -246,7 +377,10 @@ const slash = {
                         { name: '⭐ Łączne XP', value: totalXp.toString(), inline: true },
                         { name: '📈 Średni poziom', value: avgLevel, inline: true },
                         { name: '👑 Najwyższy poziom', value: allUsers[0]?.level?.toString() || '0', inline: true },
-                        { name: '🏆 Lider rankingu', value: allUsers[0] ? `<@${allUsers[0].userId}>` : 'Brak', inline: true }
+                        { name: '🏆 Lider rankingu', value: allUsers[0] ? `<@${allUsers[0].userId}>` : 'Brak', inline: true },
+                        { name: '🎯 Bazowe XP', value: `${xpSettings.baseMin}-${xpSettings.baseMax} XP`, inline: false },
+                        { name: '🎭 Boosty ról', value: roleBoostsList.length > 1000 ? roleBoostsList.substring(0, 1000) + '...' : roleBoostsList, inline: false },
+                        { name: '📺 Boosty kanałów', value: channelBoostsList.length > 1000 ? channelBoostsList.substring(0, 1000) + '...' : channelBoostsList, inline: false }
                     )
                     .setTimestamp();
 
@@ -430,6 +564,165 @@ const slash = {
                         content: '❌ Wystąpił błąd podczas synchronizacji ról.'
                     });
                 }
+                break;
+
+            case 'set-base-xp':
+                const minXp = interaction.options.getInteger('min');
+                const maxXp = interaction.options.getInteger('max');
+
+                if (minXp > maxXp) {
+                    return interaction.reply({
+                        content: '❌ Minimalne XP nie może być większe od maksymalnego!',
+                        ephemeral: true
+                    });
+                }
+
+                delete require.cache[require.resolve('../../config.js')];
+                const baseXpConfig = require('../../config.js');
+                
+                if (!baseXpConfig.xpSettings) {
+                    baseXpConfig.xpSettings = { baseMin: 3, baseMax: 6, roleBoosts: {}, channelBoosts: {} };
+                }
+                
+                baseXpConfig.xpSettings.baseMin = minXp;
+                baseXpConfig.xpSettings.baseMax = maxXp;
+
+                const baseXpConfigPath = path.join(__dirname, '..', '..', 'config.js');
+                await saveConfig(baseXpConfigPath, baseXpConfig);
+
+                const baseXpEmbed = new EmbedBuilder()
+                    .setColor(0x00FF00)
+                    .setTitle('✅ Bazowe XP zaktualizowane')
+                    .setDescription(`Nowy zakres bazowego XP: **${minXp}-${maxXp}**`)
+                    .setTimestamp();
+
+                await interaction.reply({ embeds: [baseXpEmbed], ephemeral: true });
+                break;
+
+            case 'add-role-boost':
+                const roleBoostRole = interaction.options.getRole('role');
+                const roleMinBoost = interaction.options.getInteger('min');
+                const roleMaxBoost = interaction.options.getInteger('max');
+
+                if (roleMinBoost > roleMaxBoost) {
+                    return interaction.reply({
+                        content: '❌ Minimalne bonus XP nie może być większe od maksymalnego!',
+                        ephemeral: true
+                    });
+                }
+
+                delete require.cache[require.resolve('../../config.js')];
+                const roleBoostConfig = require('../../config.js');
+                
+                if (!roleBoostConfig.xpSettings) {
+                    roleBoostConfig.xpSettings = { baseMin: 3, baseMax: 6, roleBoosts: {}, channelBoosts: {} };
+                }
+                if (!roleBoostConfig.xpSettings.roleBoosts) {
+                    roleBoostConfig.xpSettings.roleBoosts = {};
+                }
+
+                roleBoostConfig.xpSettings.roleBoosts[roleBoostRole.id] = { min: roleMinBoost, max: roleMaxBoost };
+
+                const roleBoostConfigPath = path.join(__dirname, '..', '..', 'config.js');
+                await saveConfig(roleBoostConfigPath, roleBoostConfig);
+
+                const roleBoostEmbed = new EmbedBuilder()
+                    .setColor(0x00FF00)
+                    .setTitle('✅ Boost roli dodany')
+                    .setDescription(`Rola ${roleBoostRole} otrzyma bonus **${roleMinBoost}-${roleMaxBoost} XP**`)
+                    .setTimestamp();
+
+                await interaction.reply({ embeds: [roleBoostEmbed], ephemeral: true });
+                break;
+
+            case 'remove-role-boost':
+                const removeRoleBoostRole = interaction.options.getRole('role');
+
+                delete require.cache[require.resolve('../../config.js')];
+                const removeRoleBoostConfig = require('../../config.js');
+
+                if (!removeRoleBoostConfig.xpSettings?.roleBoosts?.[removeRoleBoostRole.id]) {
+                    return interaction.reply({
+                        content: `❌ Rola ${removeRoleBoostRole} nie ma ustawionego boostu XP!`,
+                        ephemeral: true
+                    });
+                }
+
+                delete removeRoleBoostConfig.xpSettings.roleBoosts[removeRoleBoostRole.id];
+
+                const removeRoleBoostConfigPath = path.join(__dirname, '..', '..', 'config.js');
+                await saveConfig(removeRoleBoostConfigPath, removeRoleBoostConfig);
+
+                const removeRoleBoostEmbed = new EmbedBuilder()
+                    .setColor(0xFF0000)
+                    .setTitle('🗑️ Boost roli usunięty')
+                    .setDescription(`Usunięto boost XP dla roli ${removeRoleBoostRole}`)
+                    .setTimestamp();
+
+                await interaction.reply({ embeds: [removeRoleBoostEmbed], ephemeral: true });
+                break;
+
+            case 'add-channel-boost':
+                const channelBoostChannel = interaction.options.getChannel('channel');
+                const channelMinBoost = interaction.options.getInteger('min');
+                const channelMaxBoost = interaction.options.getInteger('max');
+
+                if (channelMinBoost > channelMaxBoost) {
+                    return interaction.reply({
+                        content: '❌ Minimalne bonus XP nie może być większe od maksymalnego!',
+                        ephemeral: true
+                    });
+                }
+
+                delete require.cache[require.resolve('../../config.js')];
+                const channelBoostConfig = require('../../config.js');
+                
+                if (!channelBoostConfig.xpSettings) {
+                    channelBoostConfig.xpSettings = { baseMin: 3, baseMax: 6, roleBoosts: {}, channelBoosts: {} };
+                }
+                if (!channelBoostConfig.xpSettings.channelBoosts) {
+                    channelBoostConfig.xpSettings.channelBoosts = {};
+                }
+
+                channelBoostConfig.xpSettings.channelBoosts[channelBoostChannel.id] = { min: channelMinBoost, max: channelMaxBoost };
+
+                const channelBoostConfigPath = path.join(__dirname, '..', '..', 'config.js');
+                await saveConfig(channelBoostConfigPath, channelBoostConfig);
+
+                const channelBoostEmbed = new EmbedBuilder()
+                    .setColor(0x00FF00)
+                    .setTitle('✅ Boost kanału dodany')
+                    .setDescription(`Kanał ${channelBoostChannel} otrzyma bonus **${channelMinBoost}-${channelMaxBoost} XP**`)
+                    .setTimestamp();
+
+                await interaction.reply({ embeds: [channelBoostEmbed], ephemeral: true });
+                break;
+
+            case 'remove-channel-boost':
+                const removeChannelBoostChannel = interaction.options.getChannel('channel');
+
+                delete require.cache[require.resolve('../../config.js')];
+                const removeChannelBoostConfig = require('../../config.js');
+
+                if (!removeChannelBoostConfig.xpSettings?.channelBoosts?.[removeChannelBoostChannel.id]) {
+                    return interaction.reply({
+                        content: `❌ Kanał ${removeChannelBoostChannel} nie ma ustawionego boostu XP!`,
+                        ephemeral: true
+                    });
+                }
+
+                delete removeChannelBoostConfig.xpSettings.channelBoosts[removeChannelBoostChannel.id];
+
+                const removeChannelBoostConfigPath = path.join(__dirname, '..', '..', 'config.js');
+                await saveConfig(removeChannelBoostConfigPath, removeChannelBoostConfig);
+
+                const removeChannelBoostEmbed = new EmbedBuilder()
+                    .setColor(0xFF0000)
+                    .setTitle('🗑️ Boost kanału usunięty')
+                    .setDescription(`Usunięto boost XP dla kanału ${removeChannelBoostChannel}`)
+                    .setTimestamp();
+
+                await interaction.reply({ embeds: [removeChannelBoostEmbed], ephemeral: true });
                 break;
         }
     }
