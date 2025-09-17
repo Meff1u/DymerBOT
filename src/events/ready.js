@@ -40,7 +40,7 @@ module.exports = {
                 const kickData = await getKickData("dymerrr");
                 const followersCount = kickData ? kickData.followersCount : null;
 
-                checkLiveStream(kickData);
+                checkLiveStream(client, kickData);
                 
                 // Update channel names
                 if (usersChannel) {
@@ -85,7 +85,7 @@ async function getKickData(channel) {
     }
 }
 
-function checkLiveStream(kickData) {
+function checkLiveStream(client, kickData) {
     const fs = require('fs');
     const path = require('path');
     const dataPath = path.join(__dirname, '..', 'data', 'data.json');
