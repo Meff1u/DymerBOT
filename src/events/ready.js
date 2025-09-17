@@ -38,7 +38,7 @@ module.exports = {
 
                 // Get followers count
                 const kickData = await getKickData("dymerrr");
-                const followersCount = kickData ? kickData.followersCount : null;
+                const followersCount = kickData ? kickData.followers_count : null;
 
                 checkLiveStream(client, kickData);
                 
@@ -97,7 +97,9 @@ function checkLiveStream(client, kickData) {
     }
 
     if (kickData && kickData.livestream?.is_live) {
+        console.log('Streamer is live');
         if (data.liveId !== kickData.livestream.id) {
+            console.log('New live stream detected, sending notification.');
             data.liveId = kickData.livestream.id;
             fs.writeFileSync(dataPath, JSON.stringify(data, null, 2), 'utf8');
             const liveChannel = client.channels.cache.get("1415717476771299471");
