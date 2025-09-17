@@ -70,23 +70,23 @@ const slash = {
     admin: true,
     run: async (client, interaction) => {
         const subcommand = interaction.options.getSubcommand();
-        const configPath = path.join(__dirname, "..", "..", "config.js");
+        const dataPath = path.join(__dirname, "..", "..", "data.json");
 
         try {
-            delete require.cache[require.resolve("../../config.js")];
-            const config = require("../../config.js");
+            delete require.cache[require.resolve("../../data.json")];
+            const data = require("../../data.json");
 
             switch (subcommand) {
                 case "add":
                     const newRule = interaction.options.getString("content");
-                    config.rules.push(newRule);
+                    data.rules.push(newRule);
 
-                    await saveConfig(configPath, config);
+                    await saveData(dataPath, data);
 
                     const addEmbed = new EmbedBuilder()
                         .setColor(0x00ff00)
                         .setTitle("✅ Punkt dodany")
-                        .setDescription(`Dodano punkt ${config.rules.length}: ${newRule}`)
+                        .setDescription(`Dodano punkt ${data.rules.length}: ${newRule}`)
                         .setTimestamp();
 
                     await interaction.reply({ embeds: [addEmbed], ephemeral: true });
@@ -96,13 +96,13 @@ const slash = {
                     const editIndex = interaction.options.getInteger("index") - 1;
                     const editContent = interaction.options.getString("content");
 
-                    if (editIndex < 0 || editIndex >= config.rules.length) {
+                    if (editIndex < 0 || editIndex >= data.rules.length) {
                         const errorEmbed = new EmbedBuilder()
                             .setColor(0xff0000)
                             .setTitle("❌ Błąd")
                             .setDescription(
                                 `Punkt o numerze ${editIndex + 1} nie istnieje. Regulamin ma ${
-                                    config.rules.length
+                                    data.rules.length
                                 } punktów.`
                             )
                             .setTimestamp();
@@ -111,10 +111,10 @@ const slash = {
                         return;
                     }
 
-                    const oldContent = config.rules[editIndex];
-                    config.rules[editIndex] = editContent;
+                    const oldContent = data.rules[editIndex];
+                    data.rules[editIndex] = editContent;
 
-                    await saveConfig(configPath, config);
+                    await saveData(dataPath, data);
 
                     const editEmbed = new EmbedBuilder()
                         .setColor(0xffff00)
@@ -132,13 +132,13 @@ const slash = {
                 case "remove":
                     const removeIndex = interaction.options.getInteger("index") - 1;
 
-                    if (removeIndex < 0 || removeIndex >= config.rules.length) {
+                    if (removeIndex < 0 || removeIndex >= data.rules.length) {
                         const errorEmbed = new EmbedBuilder()
                             .setColor(0xff0000)
                             .setTitle("❌ Błąd")
                             .setDescription(
                                 `Punkt o numerze ${removeIndex + 1} nie istnieje. Regulamin ma ${
-                                    config.rules.length
+                                    data.rules.length
                                 } punktów.`
                             )
                             .setTimestamp();
@@ -147,9 +147,9 @@ const slash = {
                         return;
                     }
 
-                    const removedRule = config.rules.splice(removeIndex, 1)[0];
+                    const removedRule = data.rules.splice(removeIndex, 1)[0];
 
-                    await saveConfig(configPath, config);
+                    await saveData(dataPath, data);
 
                     const removeEmbed = new EmbedBuilder()
                         .setColor(0xff0000)
@@ -161,7 +161,7 @@ const slash = {
                     break;
 
                 case "list":
-                    if (config.rules.length === 0) {
+                    if (data.rules.length === 0) {
                         const emptyEmbed = new EmbedBuilder()
                             .setColor(0x808080)
                             .setTitle("📋 Regulamin")
@@ -174,7 +174,7 @@ const slash = {
                         return;
                     }
 
-                    const rulesList = config.rules
+                    const rulesList = data.rules
                         .map((rule, index) => `**${index + 1}.** ${rule}`)
                         .join("\n\n");
 
@@ -182,7 +182,7 @@ const slash = {
                         .setColor(0x0099ff)
                         .setTitle("📋 Regulamin serwera")
                         .setDescription(rulesList)
-                        .setFooter({ text: `Łącznie punktów: ${config.rules.length}` })
+                        .setFooter({ text: `Łącznie punktów: ${data.rules.length}` })
                         .setTimestamp();
 
                     await interaction.reply({ embeds: [listEmbed], ephemeral: true });
@@ -239,8 +239,8 @@ const slash = {
                             )
                             .addTextDisplayComponents(
                                 new TextDisplayBuilder().setContent(
-                                    config.rules.length > 0
-                                        ? config.rules
+                                    data.rules.length > 0
+                                        ? data.rules
                                               .map((rule, index) => `**${index + 1}.** ${rule}`)
                                               .join("\n\n")
                                         : "Brak zasad w regulaminie."
@@ -274,15 +274,8 @@ const slash = {
     },
 };
 
-async function saveConfig(configPath, config) {
-    const configContent = `module.exports = {
-    token: "${config.token}",
-    rules: [
-        ${config.rules.map((rule) => `"${rule.replace(/"/g, '\\"')}"`).join(",\n        ")}
-    ]
-}`;
-
-    await fs.writeFile(configPath, configContent, "utf8");
+async function saveData(dataPath, data) {
+    await fs.writeFile(dataPath, JSON.stringify(data, null, 4), "utf8");
 }
 
 module.exports = slash;

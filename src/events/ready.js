@@ -37,7 +37,10 @@ module.exports = {
                 });
 
                 // Get followers count
-                const followersCount = await getKickFollowers("dymerrr");
+                const kickData = await getKickData("dymerrr");
+                const followersCount = kickData ? kickData.followersCount : null;
+
+                checkLiveStream(kickData);
                 
                 // Update channel names
                 if (usersChannel) {
@@ -66,7 +69,7 @@ module.exports = {
     },
 };
 
-async function getKickFollowers(channel) {
+async function getKickData(channel) {
     const url = `https://kick.com/api/v2/channels/${channel}`;
     try {
         const res = await fetch(url);
@@ -75,9 +78,32 @@ async function getKickFollowers(channel) {
             return null;
         }
         const data = await res.json();
-        return data.followers_count;
+        return data;
     } catch (error) {
         console.error('Error fetching followers count:', error);
         return null;
+    }
+}
+
+function checkLiveStream(kickData) {
+    const fs = require('fs');
+    const path = require('path');
+    const dataPath = path.join(__dirname, '..', 'data', 'data.json');
+    let data = {};
+    try {
+        data = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
+    } catch (error) {
+        console.error('Error reading data file:', error);
+    }
+
+    if (kickData && kickData.livestream?.is_live) {
+        if (data.liveId !== kickData.livestream.id) {
+            data.liveId = kickData.livestream.id;
+            fs.writeFileSync(dataPath, JSON.stringify(data, null, 2), 'utf8');
+            const liveChannel = client.channels.cache.get("1415717476771299471");
+            if (liveChannel) {
+                liveChannel.send(`@everyone\n🟢 **Dymer** własnie się odpalił!\n[${kickData.livestream.session_title}](https://kick.com/dymerrr)`);
+            }
+        }
     }
 }

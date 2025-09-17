@@ -7,34 +7,8 @@ const { levelSystem } = require('../../utils/levelSystem');
 const fs = require('fs').promises;
 const path = require('path');
 
-async function saveConfig(configPath, config) {
-    const configContent = `module.exports = {
-    token: "${config.token}",
-    rules: [
-        ${config.rules.map((rule) => `"${rule.replace(/"/g, '\\"')}"`).join(",\n        ")}
-    ],
-    levelRoles: {
-        ${Object.entries(config.levelRoles || {})
-            .map(([level, roleId]) => `${level}: "${roleId}"`)
-            .join(",\n        ")}
-    },
-    xpSettings: {
-        baseMin: ${config.xpSettings?.baseMin || 3},
-        baseMax: ${config.xpSettings?.baseMax || 6},
-        roleBoosts: {
-            ${Object.entries(config.xpSettings?.roleBoosts || {})
-                .map(([roleId, boost]) => `"${roleId}": { min: ${boost.min}, max: ${boost.max} }`)
-                .join(",\n            ")}
-        },
-        channelBoosts: {
-            ${Object.entries(config.xpSettings?.channelBoosts || {})
-                .map(([channelId, boost]) => `"${channelId}": { min: ${boost.min}, max: ${boost.max} }`)
-                .join(",\n            ")}
-        }
-    }
-}`;
-    
-    await fs.writeFile(configPath, configContent, "utf8");
+async function saveData(dataPath, data) {
+    await fs.writeFile(dataPath, JSON.stringify(data, null, 4), "utf8");
 }
 
 const slash = {
@@ -342,9 +316,9 @@ const slash = {
                 const totalMessages = allUsers.reduce((sum, user) => sum + user.messages, 0);
                 const avgLevel = totalUsers > 0 ? (allUsers.reduce((sum, user) => sum + user.level, 0) / totalUsers).toFixed(1) : 0;
 
-                delete require.cache[require.resolve('../../config.js')];
-                const statsConfig = require('../../config.js');
-                const xpSettings = statsConfig.xpSettings || { baseMin: 3, baseMax: 6, roleBoosts: {}, channelBoosts: {} };
+                delete require.cache[require.resolve('../../data.json')];
+                const statsData = require('../../data.json');
+                const xpSettings = statsData.xpSettings || { baseMin: 3, baseMax: 6, roleBoosts: {}, channelBoosts: {} };
 
                 let roleBoostsList = 'Brak';
                 if (Object.keys(xpSettings.roleBoosts).length > 0) {
@@ -430,18 +404,18 @@ const slash = {
                 const addRoleLevel = interaction.options.getInteger('level');
                 const addRole = interaction.options.getRole('role');
                 
-                // Załaduj aktualną konfigurację
-                delete require.cache[require.resolve('../../config.js')];
-                const addRoleConfig = require('../../config.js');
+                // Załaduj aktualne dane
+                delete require.cache[require.resolve('../../data.json')];
+                const addRoleData = require('../../data.json');
                 
-                if (!addRoleConfig.levelRoles) {
-                    addRoleConfig.levelRoles = {};
+                if (!addRoleData.levelRoles) {
+                    addRoleData.levelRoles = {};
                 }
                 
-                addRoleConfig.levelRoles[addRoleLevel] = addRole.id;
+                addRoleData.levelRoles[addRoleLevel] = addRole.id;
                 
-                const configPath = path.join(__dirname, '..', '..', 'config.js');
-                await saveConfig(configPath, addRoleConfig);
+                const dataPath = path.join(__dirname, '..', '..', 'data.json');
+                await saveData(dataPath, addRoleData);
                 
                 const addRoleEmbed = new EmbedBuilder()
                     .setColor(0x00FF00)
@@ -455,23 +429,23 @@ const slash = {
             case 'remove-role':
                 const removeRoleLevel = interaction.options.getInteger('level');
                 
-                // Załaduj aktualną konfigurację
-                delete require.cache[require.resolve('../../config.js')];
-                const removeRoleConfig = require('../../config.js');
+                // Załaduj aktualne dane
+                delete require.cache[require.resolve('../../data.json')];
+                const removeRoleData = require('../../data.json');
                 
-                if (!removeRoleConfig.levelRoles || !removeRoleConfig.levelRoles[removeRoleLevel]) {
+                if (!removeRoleData.levelRoles || !removeRoleData.levelRoles[removeRoleLevel]) {
                     return interaction.reply({
                         content: `❌ Nie znaleziono roli dla poziomu ${removeRoleLevel}`,
                         ephemeral: true
                     });
                 }
                 
-                const removedRoleId = removeRoleConfig.levelRoles[removeRoleLevel];
+                const removedRoleId = removeRoleData.levelRoles[removeRoleLevel];
                 const removedRole = interaction.guild.roles.cache.get(removedRoleId);
-                delete removeRoleConfig.levelRoles[removeRoleLevel];
+                delete removeRoleData.levelRoles[removeRoleLevel];
                 
-                const removeConfigPath = path.join(__dirname, '..', '..', 'config.js');
-                await saveConfig(removeConfigPath, removeRoleConfig);
+                const removeDataPath = path.join(__dirname, '..', '..', 'data.json');
+                await saveData(removeDataPath, removeRoleData);
                 
                 const removeRoleEmbed = new EmbedBuilder()
                     .setColor(0xFF0000)
@@ -483,18 +457,18 @@ const slash = {
                 break;
 
             case 'list-roles':
-                // Załaduj aktualną konfigurację
-                delete require.cache[require.resolve('../../config.js')];
-                const listRolesConfig = require('../../config.js');
+                // Załaduj aktualne dane
+                delete require.cache[require.resolve('../../data.json')];
+                const listRolesData = require('../../data.json');
                 
-                if (!listRolesConfig.levelRoles || Object.keys(listRolesConfig.levelRoles).length === 0) {
+                if (!listRolesData.levelRoles || Object.keys(listRolesData.levelRoles).length === 0) {
                     return interaction.reply({
                         content: '📋 Brak skonfigurowanych ról poziomów.\nUżyj `/level-admin add-role` aby dodać pierwszą rolę.',
                         ephemeral: true
                     });
                 }
                 
-                const rolesList = Object.entries(listRolesConfig.levelRoles)
+                const rolesList = Object.entries(listRolesData.levelRoles)
                     .sort(([a], [b]) => parseInt(a) - parseInt(b))
                     .map(([level, roleId]) => {
                         const role = interaction.guild.roles.cache.get(roleId);
@@ -507,7 +481,7 @@ const slash = {
                     .setColor(0x5865F2)
                     .setTitle('🎭 Role poziomów')
                     .setDescription(rolesList)
-                    .setFooter({ text: `Łącznie ról: ${Object.keys(listRolesConfig.levelRoles).length}` })
+                    .setFooter({ text: `Łącznie ról: ${Object.keys(listRolesData.levelRoles).length}` })
                     .setTimestamp();
                 
                 await interaction.reply({ embeds: [listRolesEmbed], ephemeral: true });
@@ -517,11 +491,11 @@ const slash = {
                 await interaction.deferReply({ ephemeral: true });
                 
                 try {
-                    // Załaduj konfigurację
-                    delete require.cache[require.resolve('../../config.js')];
-                    const syncConfig = require('../../config.js');
+                    // Załaduj dane
+                    delete require.cache[require.resolve('../../data.json')];
+                    const syncData = require('../../data.json');
                     
-                    if (!syncConfig.levelRoles || Object.keys(syncConfig.levelRoles).length === 0) {
+                    if (!syncData.levelRoles || Object.keys(syncData.levelRoles).length === 0) {
                         return interaction.editReply({
                             content: '❌ Brak skonfigurowanych ról poziomów do synchronizacji.'
                         });
@@ -577,18 +551,18 @@ const slash = {
                     });
                 }
 
-                delete require.cache[require.resolve('../../config.js')];
-                const baseXpConfig = require('../../config.js');
+                delete require.cache[require.resolve('../../data.json')];
+                const baseXpData = require('../../data.json');
                 
-                if (!baseXpConfig.xpSettings) {
-                    baseXpConfig.xpSettings = { baseMin: 3, baseMax: 6, roleBoosts: {}, channelBoosts: {} };
+                if (!baseXpData.xpSettings) {
+                    baseXpData.xpSettings = { baseMin: 3, baseMax: 6, roleBoosts: {}, channelBoosts: {} };
                 }
                 
-                baseXpConfig.xpSettings.baseMin = minXp;
-                baseXpConfig.xpSettings.baseMax = maxXp;
+                baseXpData.xpSettings.baseMin = minXp;
+                baseXpData.xpSettings.baseMax = maxXp;
 
-                const baseXpConfigPath = path.join(__dirname, '..', '..', 'config.js');
-                await saveConfig(baseXpConfigPath, baseXpConfig);
+                const baseXpDataPath = path.join(__dirname, '..', '..', 'data.json');
+                await saveData(baseXpDataPath, baseXpData);
 
                 const baseXpEmbed = new EmbedBuilder()
                     .setColor(0x00FF00)
@@ -611,20 +585,20 @@ const slash = {
                     });
                 }
 
-                delete require.cache[require.resolve('../../config.js')];
-                const roleBoostConfig = require('../../config.js');
+                delete require.cache[require.resolve('../../data.json')];
+                const roleBoostData = require('../../data.json');
                 
-                if (!roleBoostConfig.xpSettings) {
-                    roleBoostConfig.xpSettings = { baseMin: 3, baseMax: 6, roleBoosts: {}, channelBoosts: {} };
+                if (!roleBoostData.xpSettings) {
+                    roleBoostData.xpSettings = { baseMin: 3, baseMax: 6, roleBoosts: {}, channelBoosts: {} };
                 }
-                if (!roleBoostConfig.xpSettings.roleBoosts) {
-                    roleBoostConfig.xpSettings.roleBoosts = {};
+                if (!roleBoostData.xpSettings.roleBoosts) {
+                    roleBoostData.xpSettings.roleBoosts = {};
                 }
 
-                roleBoostConfig.xpSettings.roleBoosts[roleBoostRole.id] = { min: roleMinBoost, max: roleMaxBoost };
+                roleBoostData.xpSettings.roleBoosts[roleBoostRole.id] = { min: roleMinBoost, max: roleMaxBoost };
 
-                const roleBoostConfigPath = path.join(__dirname, '..', '..', 'config.js');
-                await saveConfig(roleBoostConfigPath, roleBoostConfig);
+                const roleBoostDataPath = path.join(__dirname, '..', '..', 'data.json');
+                await saveData(roleBoostDataPath, roleBoostData);
 
                 const roleBoostEmbed = new EmbedBuilder()
                     .setColor(0x00FF00)
@@ -638,20 +612,20 @@ const slash = {
             case 'remove-role-boost':
                 const removeRoleBoostRole = interaction.options.getRole('role');
 
-                delete require.cache[require.resolve('../../config.js')];
-                const removeRoleBoostConfig = require('../../config.js');
+                delete require.cache[require.resolve('../../data.json')];
+                const removeRoleBoostData = require('../../data.json');
 
-                if (!removeRoleBoostConfig.xpSettings?.roleBoosts?.[removeRoleBoostRole.id]) {
+                if (!removeRoleBoostData.xpSettings?.roleBoosts?.[removeRoleBoostRole.id]) {
                     return interaction.reply({
                         content: `❌ Rola ${removeRoleBoostRole} nie ma ustawionego boostu XP!`,
                         ephemeral: true
                     });
                 }
 
-                delete removeRoleBoostConfig.xpSettings.roleBoosts[removeRoleBoostRole.id];
+                delete removeRoleBoostData.xpSettings.roleBoosts[removeRoleBoostRole.id];
 
-                const removeRoleBoostConfigPath = path.join(__dirname, '..', '..', 'config.js');
-                await saveConfig(removeRoleBoostConfigPath, removeRoleBoostConfig);
+                const removeRoleBoostDataPath = path.join(__dirname, '..', '..', 'data.json');
+                await saveData(removeRoleBoostDataPath, removeRoleBoostData);
 
                 const removeRoleBoostEmbed = new EmbedBuilder()
                     .setColor(0xFF0000)
@@ -674,20 +648,20 @@ const slash = {
                     });
                 }
 
-                delete require.cache[require.resolve('../../config.js')];
-                const channelBoostConfig = require('../../config.js');
+                delete require.cache[require.resolve('../../data.json')];
+                const channelBoostData = require('../../data.json');
                 
-                if (!channelBoostConfig.xpSettings) {
-                    channelBoostConfig.xpSettings = { baseMin: 3, baseMax: 6, roleBoosts: {}, channelBoosts: {} };
+                if (!channelBoostData.xpSettings) {
+                    channelBoostData.xpSettings = { baseMin: 3, baseMax: 6, roleBoosts: {}, channelBoosts: {} };
                 }
-                if (!channelBoostConfig.xpSettings.channelBoosts) {
-                    channelBoostConfig.xpSettings.channelBoosts = {};
+                if (!channelBoostData.xpSettings.channelBoosts) {
+                    channelBoostData.xpSettings.channelBoosts = {};
                 }
 
-                channelBoostConfig.xpSettings.channelBoosts[channelBoostChannel.id] = { min: channelMinBoost, max: channelMaxBoost };
+                channelBoostData.xpSettings.channelBoosts[channelBoostChannel.id] = { min: channelMinBoost, max: channelMaxBoost };
 
-                const channelBoostConfigPath = path.join(__dirname, '..', '..', 'config.js');
-                await saveConfig(channelBoostConfigPath, channelBoostConfig);
+                const channelBoostDataPath = path.join(__dirname, '..', '..', 'data.json');
+                await saveData(channelBoostDataPath, channelBoostData);
 
                 const channelBoostEmbed = new EmbedBuilder()
                     .setColor(0x00FF00)
@@ -701,20 +675,20 @@ const slash = {
             case 'remove-channel-boost':
                 const removeChannelBoostChannel = interaction.options.getChannel('channel');
 
-                delete require.cache[require.resolve('../../config.js')];
-                const removeChannelBoostConfig = require('../../config.js');
+                delete require.cache[require.resolve('../../data.json')];
+                const removeChannelBoostData = require('../../data.json');
 
-                if (!removeChannelBoostConfig.xpSettings?.channelBoosts?.[removeChannelBoostChannel.id]) {
+                if (!removeChannelBoostData.xpSettings?.channelBoosts?.[removeChannelBoostChannel.id]) {
                     return interaction.reply({
                         content: `❌ Kanał ${removeChannelBoostChannel} nie ma ustawionego boostu XP!`,
                         ephemeral: true
                     });
                 }
 
-                delete removeChannelBoostConfig.xpSettings.channelBoosts[removeChannelBoostChannel.id];
+                delete removeChannelBoostData.xpSettings.channelBoosts[removeChannelBoostChannel.id];
 
-                const removeChannelBoostConfigPath = path.join(__dirname, '..', '..', 'config.js');
-                await saveConfig(removeChannelBoostConfigPath, removeChannelBoostConfig);
+                const removeChannelBoostDataPath = path.join(__dirname, '..', '..', 'data.json');
+                await saveData(removeChannelBoostDataPath, removeChannelBoostData);
 
                 const removeChannelBoostEmbed = new EmbedBuilder()
                     .setColor(0xFF0000)

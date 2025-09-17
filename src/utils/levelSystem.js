@@ -4,9 +4,12 @@ const path = require('path');
 class LevelSystem {
     constructor() {
         this.dataDir = path.join(__dirname, '..', 'data');
+        this.dataPath = path.join(__dirname, '..', 'data.json');
         this.users = new Map();
         this.cooldowns = new Map();
+        this.data = null;
         this.ensureDataDir();
+        this.loadData();
     }
 
     async ensureDataDir() {
@@ -14,6 +17,34 @@ class LevelSystem {
             await fs.access(this.dataDir);
         } catch (error) {
             await fs.mkdir(this.dataDir, { recursive: true });
+        }
+    }
+
+    async loadData() {
+        try {
+            const data = await fs.readFile(this.dataPath, 'utf8');
+            this.data = JSON.parse(data);
+        } catch (error) {
+            console.error('Error loading data.json:', error);
+            this.data = {
+                rules: [],
+                levelRoles: {},
+                xpSettings: {
+                    baseMin: 3,
+                    baseMax: 6,
+                    roleBoosts: {},
+                    channelBoosts: {}
+                },
+                liveId: ""
+            };
+        }
+    }
+
+    async saveData() {
+        try {
+            await fs.writeFile(this.dataPath, JSON.stringify(this.data, null, 4));
+        } catch (error) {
+            console.error('Error saving data.json:', error);
         }
     }
 
@@ -138,8 +169,7 @@ class LevelSystem {
             }
         }
 
-        const config = require('../config.js');
-        const xpSettings = config.xpSettings || { baseMin: 3, baseMax: 6, roleBoosts: {}, channelBoosts: {} };
+        const xpSettings = this.data.xpSettings || { baseMin: 3, baseMax: 6, roleBoosts: {}, channelBoosts: {} };
         
         let baseXp = Math.floor(Math.random() * (xpSettings.baseMax - xpSettings.baseMin + 1)) + xpSettings.baseMin;
         let totalBoost = 0;
@@ -240,13 +270,12 @@ class LevelSystem {
 
     async checkLevelRoles(userId, guildId, oldLevel, newLevel, client) {
         try {
-            const config = require('../config.js');
             const guild = client.guilds.cache.get(guildId);
             const member = guild.members.cache.get(userId);
             
-            if (!member || !config.levelRoles) return;
+            if (!member || !this.data.levelRoles) return;
 
-            const levelRoles = config.levelRoles;
+            const levelRoles = this.data.levelRoles;
             const rolesToAdd = [];
             const rolesToRemove = [];
 
