@@ -38,7 +38,8 @@ module.exports = {
 
                 // Get followers count
                 const kickData = await getKickData("dymerrr");
-                const followersCount = kickData ? kickData.followers_count : null;
+                console.log('Kick API response:', JSON.stringify(kickData, null, 2)); // Debug log
+                const followersCount = kickData ? (kickData.followers_count || kickData.followersCount || kickData.follower_count) : null;
 
                 checkLiveStream(client, kickData);
                 
@@ -65,7 +66,7 @@ module.exports = {
             } catch (error) {
                 console.error('Error updating statistics:', error);
             }
-        }, 180000);
+        }, 180 * 1000);
     },
 };
 
@@ -88,7 +89,7 @@ async function getKickData(channel) {
 function checkLiveStream(client, kickData) {
     const fs = require('fs');
     const path = require('path');
-    const dataPath = path.join(__dirname, '..', 'data', 'data.json');
+    const dataPath = path.join(__dirname, '..', 'data.json');
     let data = {};
     try {
         data = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
@@ -96,10 +97,10 @@ function checkLiveStream(client, kickData) {
         console.error('Error reading data file:', error);
     }
 
-    console.log('Checking live stream status:\n' + kickData.livestream);
+    console.log(`Checking live stream status: ${kickData.livestream}`);
 
     if (kickData && kickData.livestream?.is_live) {
-        console.log('Streamer is live');
+        console.log('Dymer is live');
         if (data.liveId !== kickData.livestream.id) {
             console.log('New live stream detected, sending notification.');
             data.liveId = kickData.livestream.id;
