@@ -96,6 +96,8 @@ function checkLiveStream(client, kickData) {
         console.error('Error reading data file:', error);
     }
 
+    console.log('Checking live stream status:\n' + kickData.livestream);
+
     if (kickData && kickData.livestream?.is_live) {
         console.log('Streamer is live');
         if (data.liveId !== kickData.livestream.id) {
