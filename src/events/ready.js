@@ -38,18 +38,30 @@ module.exports = {
 
                 // Get followers count
                 const kickData = await getKickData("dymerrr");
-                console.log('Kick API response:', JSON.stringify(kickData, null, 2)); // Debug log
                 const followersCount = kickData ? (kickData.followers_count || kickData.followersCount || kickData.follower_count) : null;
 
-                checkLiveStream(client, kickData);
+                const streamInfo = checkLiveStream(client, kickData);
                 
                 // Update channel names
                 if (usersChannel) {
                     await usersChannel.setName(`👥Użytkownicy: ${realUsers}`);
-                    client.user.setPresence({
-                        activities: [{ name: `${realUsers} użytkowników`, type: ActivityType.Watching }],
-                        status: 'idle',
-                    });
+                    
+                    // Set bot presence based on stream status
+                    if (streamInfo.isLive) {
+                        client.user.setPresence({
+                            activities: [{ 
+                                name: streamInfo.title, 
+                                type: ActivityType.Streaming,
+                                url: "https://kick.com/dymerrr"
+                            }],
+                            status: 'online',
+                        });
+                    } else {
+                        client.user.setPresence({
+                            activities: [{ name: `${realUsers} użytkowników`, type: ActivityType.Watching }],
+                            status: 'idle',
+                        });
+                    }
                 }
                 
                 if (bansChannel) {
@@ -97,18 +109,25 @@ function checkLiveStream(client, kickData) {
         console.error('Error reading data file:', error);
     }
 
-    console.log(`Checking live stream status: ${kickData.livestream}`);
+    let streamInfo = {
+        isLive: false,
+        title: null
+    };
 
     if (kickData && kickData.livestream?.is_live) {
-        console.log('Dymer is live');
+        streamInfo.isLive = true;
+        streamInfo.title = kickData.livestream.session_title || "Dymer na żywo!";
+        
         if (data.liveId !== kickData.livestream.id) {
             console.log('New live stream detected, sending notification.');
             data.liveId = kickData.livestream.id;
             fs.writeFileSync(dataPath, JSON.stringify(data, null, 2), 'utf8');
             const liveChannel = client.channels.cache.get("1415717476771299471");
             if (liveChannel) {
-                liveChannel.send(`@everyone\n🟢 **Dymer** własnie się odpalił!\n[${kickData.livestream.session_title}](https://kick.com/dymerrr)`);
+                liveChannel.send(`@everyone\n🟢 **Dymer** właśnie się odpalił!\n[${kickData.livestream.session_title}](https://kick.com/dymerrr)`);
             }
         }
     }
+
+    return streamInfo;
 }

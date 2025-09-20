@@ -1,6 +1,6 @@
 {
   "name": "dymerbot",
-  "version": "1.0.2a",
+  "version": "1.0.3",
   "description": "Bot for Dymer's discord community",
   "main": "index.js",
   "scripts": {
